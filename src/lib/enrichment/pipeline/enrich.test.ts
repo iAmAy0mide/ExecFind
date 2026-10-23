@@ -1,0 +1,9 @@
+import { describe, expect, it } from "vitest";
+import { extractPage } from "../extractors/page";
+import { enrichLead } from "./enrich";
+
+describe("enrichment pipeline", () => {
+  it("degrades cleanly when optional providers are absent", async () => { const result = await enrichLead({ companyName: "Atlas" }); expect(result.ok && result.value.company.domain).toBeUndefined(); expect(result.ok && result.value.warnings).toEqual(expect.arrayContaining([expect.stringContaining("Brave"), expect.stringContaining("Hunter")])); });
+  it("returns a website-only result when providers are absent", async () => { const page = extractPage('<html><head><title>Atlas</title></head><body><p>Earn monthly ROI during the tenure.</p><a href="mailto:hello@atlas.example">Mail</a><section><h3>Ada Obi</h3><p>Managing Director</p></section></body></html>', "https://atlas.example/"); const result = await enrichLead({ companyName: "Atlas", website: "atlas.example" }, { crawl: async () => ({ pages: [page], warnings: [] }) }); expect(result.ok && result.value.investment.branch).toBe("recurring_payout"); expect(result.ok && result.value.bestRoute?.value).toBe("hello@atlas.example"); expect(result.ok && result.value.score.icpFit).toBe(40); });
+  it("uses search only when multiple results corroborate one domain", async () => { const searchProvider = { searchCompany: async () => ({ ok: true as const, value: [{ title: "Atlas Homes leadership", url: "https://atlas.example/team", snippet: "Atlas Homes CEO" }, { title: "Atlas Homes investment", url: "https://atlas.example/invest", snippet: "Atlas Homes plans" }] }) }; const result = await enrichLead({ companyName: "Atlas Homes" }, { searchProvider, crawl: async () => ({ pages: [], warnings: [] }) }); expect(result.ok && result.value.company.domain).toBe("atlas.example"); });
+});
